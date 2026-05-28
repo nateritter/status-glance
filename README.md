@@ -89,9 +89,30 @@ swift run           # build and launch straight from source
 
 Other `make` targets: `build` (release binary only), `run`, `clean`, `help`.
 
-> StatusGlance is currently distributed as source. The app is unsigned, so the
-> first launch of a self-built `.app` may require right-click → **Open**. A
-> notarized release may follow.
+### Running an unsigned build (important)
+
+StatusGlance is **not code-signed or notarized** — it isn't enrolled in the
+Apple Developer Program. What that means in practice:
+
+- **Building it yourself** (the steps above) produces a local app that macOS does
+  **not** quarantine, so `make app` → `open StatusGlance.app` just works. No
+  workaround needed. This is the recommended path.
+- **A downloaded build** (e.g. a `.app`/`.zip` from someone else or a future
+  Release) *will* be quarantined, and Gatekeeper will say *"StatusGlance can't be
+  opened because Apple cannot check it for malicious software."* To run it
+  anyway, do one of:
+  - **Right-click** (Control-click) the app → **Open** → **Open** in the dialog. You
+    only need to do this once.
+  - Or open it once, then go to **System Settings → Privacy & Security** and click
+    **Open Anyway**.
+  - Or strip the quarantine flag from Terminal:
+
+    ```sh
+    xattr -dr com.apple.quarantine /Applications/StatusGlance.app
+    ```
+
+This is normal for open-source macOS apps without a paid Developer ID. If the
+project later enrolls and notarizes, these steps go away.
 
 ## Configuration
 

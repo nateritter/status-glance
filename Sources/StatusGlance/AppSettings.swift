@@ -9,23 +9,23 @@ final class AppSettings: ObservableObject {
 
     enum Keys {
         static let statusPageURL = "statusPageURL"
-        static let displayNameOverride = "displayNameOverride"
         static let pollInterval = "pollInterval"
-        static let customLogoPath = "customLogoPath"
+        static let trackedComponent = "trackedComponent"
     }
 
     static let defaultStatusPageURL = "https://status.claude.com"
     static let defaultPollInterval: Double = 60
     static let minimumPollInterval: Double = 15
 
+    /// Sentinel `trackedComponent` value meaning "follow the page's overall status".
+    nonisolated static let overallTracking = "__overall__"
+    /// Default tracked component (the menu-bar glyph follows this one's status).
+    static let defaultTrackedComponent = "claude.ai"
+
     private let defaults: UserDefaults
 
     @Published var statusPageURL: String {
         didSet { defaults.set(statusPageURL, forKey: Keys.statusPageURL) }
-    }
-
-    @Published var displayNameOverride: String {
-        didSet { defaults.set(displayNameOverride, forKey: Keys.displayNameOverride) }
     }
 
     /// Always clamped to at least `minimumPollInterval`.
@@ -40,8 +40,11 @@ final class AppSettings: ObservableObject {
         }
     }
 
-    @Published var customLogoPath: String {
-        didSet { defaults.set(customLogoPath, forKey: Keys.customLogoPath) }
+    /// Which component's status drives the menu-bar glyph color. `overallTracking`
+    /// (the default sentinel) means follow the page's overall indicator; otherwise
+    /// the value is a component name.
+    @Published var trackedComponent: String {
+        didSet { defaults.set(trackedComponent, forKey: Keys.trackedComponent) }
     }
 
     @Published var launchAtLogin: Bool {
@@ -55,20 +58,17 @@ final class AppSettings: ObservableObject {
             ? defaults.string(forKey: Keys.statusPageURL)!
             : Self.defaultStatusPageURL)
 
-        self.displayNameOverride = defaults.string(forKey: Keys.displayNameOverride) ?? ""
-
         let storedInterval = defaults.object(forKey: Keys.pollInterval) as? Double
         self.pollInterval = max(Self.minimumPollInterval, storedInterval ?? Self.defaultPollInterval)
 
-        self.customLogoPath = defaults.string(forKey: Keys.customLogoPath) ?? ""
+        self.trackedComponent = defaults.string(forKey: Keys.trackedComponent) ?? Self.defaultTrackedComponent
 
         self.launchAtLogin = Self.currentLaunchAtLoginState()
     }
 
-    /// The effective display name shown in the UI (override wins, else falls back).
+    /// The display name shown in the UI — the status page's own name, or a
+    /// neutral fallback before the first successful fetch.
     func effectiveName(pageName: String?) -> String {
-        let trimmed = displayNameOverride.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty { return trimmed }
         if let pageName, !pageName.isEmpty { return pageName }
         return "Status"
     }

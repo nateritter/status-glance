@@ -26,6 +26,31 @@ enum Indicator: String, Codable, Sendable {
         case .unknown: return "Status Unknown"
         }
     }
+
+    /// Severity rank for picking the "worst" status over a time window.
+    /// `.unknown` ranks below `.none` so it never wins a max() against real data.
+    var severity: Int {
+        switch self {
+        case .unknown: return -1
+        case .none: return 0
+        case .maintenance: return 1
+        case .minor: return 2
+        case .major: return 3
+        case .critical: return 4
+        }
+    }
+
+    /// Map a Statuspage incident `impact` string to an indicator.
+    /// Impact `none` (and anything unrecognized) means no visible service impact.
+    init(impact: String?) {
+        switch impact?.lowercased() {
+        case "critical": self = .critical
+        case "major": self = .major
+        case "minor": self = .minor
+        case "maintenance": self = .maintenance
+        default: self = .none
+        }
+    }
 }
 
 /// Per-component status. Lenient: unknown raw strings decode to `.unknown`.
@@ -52,6 +77,19 @@ enum ComponentStatus: String, Codable, Sendable {
         case .majorOutage: return "Major Outage"
         case .underMaintenance: return "Under Maintenance"
         case .unknown: return "Unknown"
+        }
+    }
+
+    /// The equivalent overall `Indicator` — used when the menu-bar glyph is set to
+    /// track one specific component instead of the page's overall status.
+    var asIndicator: Indicator {
+        switch self {
+        case .operational: return .none
+        case .degradedPerformance: return .minor
+        case .partialOutage: return .major
+        case .majorOutage: return .critical
+        case .underMaintenance: return .maintenance
+        case .unknown: return .unknown
         }
     }
 }

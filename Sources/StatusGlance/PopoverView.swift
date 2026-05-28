@@ -12,27 +12,35 @@ struct PopoverView: View {
     let onQuit: () -> Void
 
     private var summary: Summary? { poller.snapshot.summary }
-    private var indicator: Indicator { poller.snapshot.effectiveIndicator }
+
+    /// The tracked target drives the pill (matches the menu-bar glyph color).
+    private var indicator: Indicator {
+        poller.snapshot.trackedIndicator(tracked: settings.trackedComponent)
+    }
+
+    private var isTrackingOverall: Bool {
+        let t = settings.trackedComponent
+        return t.isEmpty || t == AppSettings.overallTracking
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
             Divider().overlay(Palette.separator)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    componentsSection
-                    if let incidents = summary?.incidents, !incidents.isEmpty {
-                        incidentsSection(incidents)
-                    }
+            // Size to content so every platform + history shows without scrolling.
+            VStack(alignment: .leading, spacing: 14) {
+                componentsSection
+                if let incidents = summary?.incidents, !incidents.isEmpty {
+                    incidentsSection(incidents)
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
             }
-            .frame(maxHeight: 360)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
             Divider().overlay(Palette.separator)
             footer
         }
         .frame(width: 300)
+        .fixedSize(horizontal: false, vertical: true)
         .background(Palette.background)
         .environment(\.colorScheme, .dark)
     }
@@ -53,6 +61,12 @@ struct PopoverView: View {
                 }
             }
             statusPill
+            // When tracking a single component, still surface the page-wide status.
+            if !isTrackingOverall, let overall = summary?.status.description {
+                Text("Overall: \(overall)")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Palette.textSecondary)
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
@@ -78,10 +92,7 @@ struct PopoverView: View {
     }
 
     private var pillText: String {
-        if poller.snapshot.isError {
-            return indicator.fallbackDescription
-        }
-        return summary?.status.description ?? indicator.fallbackDescription
+        poller.snapshot.trackedStatusText(tracked: settings.trackedComponent)
     }
 
     private var relativeUpdated: String? {
@@ -108,9 +119,22 @@ struct PopoverView: View {
             .sorted { ($0.position ?? Int.max) < ($1.position ?? Int.max) }
     }
 
+    /// Largest coverage window across components (for the "last N days" caption).
+    private var historySpanDays: Int {
+        poller.snapshot.incidentHistory.values.map(\.coverageDays).max() ?? 0
+    }
+
     private var componentsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            sectionHeader("Components")
+            HStack {
+                sectionHeader("Components")
+                Spacer()
+                if historySpanDays > 1 {
+                    Text("last \(historySpanDays) days")
+                        .font(.system(size: 9))
+                        .foregroundStyle(Palette.textSecondary)
+                }
+            }
             if visibleComponents.isEmpty {
                 Text(poller.snapshot.summary == nil ? "Loading…" : "No components to show")
                     .font(.system(size: 12))
@@ -123,24 +147,65 @@ struct PopoverView: View {
         }
     }
 
+    private func isTracked(_ comp: Component) -> Bool {
+        !isTrackingOverall && comp.name == settings.trackedComponent
+    }
+
     private func componentRow(_ comp: Component) -> some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(Palette.color(for: comp.status))
-                .frame(width: 8, height: 8)
-            Text(comp.name)
-                .font(.system(size: 12))
-                .foregroundStyle(Palette.textPrimary)
-                .lineLimit(1)
-            Spacer(minLength: 8)
-            if comp.status != .operational {
-                Text(comp.status.label)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(Palette.color(for: comp.status))
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(Palette.color(for: comp.status))
+                    .frame(width: 8, height: 8)
+                Text(comp.name)
+                    .font(.system(size: 12, weight: isTracked(comp) ? .semibold : .regular))
+                    .foregroundStyle(Palette.textPrimary)
+                    .lineLimit(1)
+                if isTracked(comp) {
+                    // Marks the component the menu-bar glyph is following.
+                    Image(systemName: "asterisk")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(Palette.accent)
+                }
+                Spacer(minLength: 8)
+                if comp.status != .operational {
+                    Text(comp.status.label)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(Palette.color(for: comp.status))
+                }
             }
+            historyBar(for: comp)
         }
         // Indent grouped components.
         .padding(.leading, comp.groupId != nil ? 14 : 0)
+    }
+
+    /// A compact per-day history strip (oldest → newest), like the status page.
+    @ViewBuilder
+    private func historyBar(for comp: Component) -> some View {
+        if let history = poller.snapshot.incidentHistory[comp.id], !history.days.isEmpty {
+            GeometryReader { geo in
+                let count = history.days.count
+                let gap: CGFloat = 1
+                let barWidth = max(1.5, (geo.size.width - CGFloat(count - 1) * gap) / CGFloat(count))
+                HStack(spacing: gap) {
+                    ForEach(history.days) { day in
+                        RoundedRectangle(cornerRadius: 1)
+                            .fill(Palette.color(for: day.indicator))
+                            .frame(width: barWidth)
+                            .help(historyTooltip(day))
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(height: 14)
+        }
+    }
+
+    private func historyTooltip(_ day: DayBucket) -> String {
+        let date = day.date.formatted(.dateTime.month(.abbreviated).day())
+        let status = day.indicator == .none ? "Operational" : day.indicator.fallbackDescription
+        return "\(date): \(status)"
     }
 
     // MARK: - Incidents

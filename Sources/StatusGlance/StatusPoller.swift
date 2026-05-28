@@ -16,11 +16,39 @@ struct StatusSnapshot: Sendable {
     var lastAttempt: Date?
     /// When data was last successfully refreshed.
     var lastSuccess: Date?
+    /// Per-component daily history, keyed by component id (from the incident feed).
+    var incidentHistory: [String: ComponentHistory] = [:]
 
     /// The overall indicator to render: real indicator on success, `.unknown` on error.
     var effectiveIndicator: Indicator {
         if isError { return .unknown }
         return summary?.status.indicator ?? .unknown
+    }
+
+    /// The indicator the menu-bar glyph should show for the tracked target.
+    /// `tracked` is `AppSettings.overallTracking` (overall) or a component name.
+    func trackedIndicator(tracked: String) -> Indicator {
+        if isError { return .unknown }
+        if tracked.isEmpty || tracked == AppSettings.overallTracking {
+            return summary?.status.indicator ?? .unknown
+        }
+        if let comp = summary?.components.first(where: { $0.name == tracked }) {
+            return comp.status.asIndicator
+        }
+        // Tracked component not found on this page — fall back to overall.
+        return summary?.status.indicator ?? .unknown
+    }
+
+    /// Human-readable status text for the tracked target (tooltip + popover pill).
+    func trackedStatusText(tracked: String) -> String {
+        if isError { return Indicator.unknown.fallbackDescription }
+        if tracked.isEmpty || tracked == AppSettings.overallTracking {
+            return summary?.status.description ?? effectiveIndicator.fallbackDescription
+        }
+        if let comp = summary?.components.first(where: { $0.name == tracked }) {
+            return "\(comp.name): \(comp.status.label)"
+        }
+        return summary?.status.description ?? effectiveIndicator.fallbackDescription
     }
 
     static let empty = StatusSnapshot(summary: nil, isError: false, errorNote: nil,
@@ -99,13 +127,23 @@ final class StatusPoller: ObservableObject {
         do {
             let summary = try await client.fetchSummary(base: base)
             if Task.isCancelled { return }
+
+            // History is best-effort: a failed incidents fetch must not fail the
+            // poll. Keep the last-known history if it can't be refreshed.
+            var history = snapshot.incidentHistory
+            if let incidents = try? await client.fetchIncidents(base: base), !Task.isCancelled {
+                history = HistoryBuilder.build(incidents: incidents, components: summary.components)
+            }
+            if Task.isCancelled { return }
+
             let now = Date()
             snapshot = StatusSnapshot(
                 summary: summary,
                 isError: false,
                 errorNote: nil,
                 lastAttempt: now,
-                lastSuccess: now
+                lastSuccess: now,
+                incidentHistory: history
             )
         } catch {
             if Task.isCancelled { return }
@@ -115,13 +153,14 @@ final class StatusPoller: ObservableObject {
             } else {
                 note = error.localizedDescription
             }
-            // Keep last-known summary; flip overall to gray/unknown and surface note.
+            // Keep last-known summary + history; flip overall to gray/unknown.
             snapshot = StatusSnapshot(
                 summary: snapshot.summary,
                 isError: true,
                 errorNote: note,
                 lastAttempt: Date(),
-                lastSuccess: snapshot.lastSuccess
+                lastSuccess: snapshot.lastSuccess,
+                incidentHistory: snapshot.incidentHistory
             )
         }
     }

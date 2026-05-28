@@ -5,9 +5,12 @@ import AppKit
 /// `onApply` callback lets the AppDelegate restart polling / re-render the glyph.
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
+    /// Source of the live component list for the "menu bar tracks" picker.
+    @ObservedObject var poller: StatusPoller
 
-    /// Called when the user wants changes to take effect (re-point + re-poll).
-    let onApply: () -> Void
+    /// Dismisses the settings window. Changes auto-save (UserDefaults) and are
+    /// applied when the window closes, so there is no separate Apply step.
+    let onClose: () -> Void
 
     @State private var urlCheck: URLCheckState = .idle
 
@@ -26,16 +29,15 @@ struct SettingsView: View {
 
             VStack(alignment: .leading, spacing: 12) {
                 statusPageField
-                displayNameField
+                trackedComponentField
                 pollIntervalField
-                customLogoField
                 launchAtLoginToggle
             }
 
             HStack {
                 Spacer()
-                Button("Apply") {
-                    onApply()
+                Button("Close") {
+                    onClose()
                 }
                 .keyboardShortcut(.defaultAction)
             }
@@ -77,11 +79,34 @@ struct SettingsView: View {
         }
     }
 
-    private var displayNameField: some View {
+    /// Names available to track: every component on the page, plus the current
+    /// selection if the page hasn't loaded yet (so the default stays visible).
+    private var componentNames: [String] {
+        var names = poller.snapshot.summary?.components.map(\.name) ?? []
+        let current = settings.trackedComponent
+        if !current.isEmpty, current != AppSettings.overallTracking, !names.contains(current) {
+            names.insert(current, at: 0)
+        }
+        return names
+    }
+
+    private var trackedComponentField: some View {
         VStack(alignment: .leading, spacing: 4) {
-            fieldLabel("Display name (optional override)")
-            TextField("Defaults to the page name", text: $settings.displayNameOverride)
-                .textFieldStyle(.roundedBorder)
+            fieldLabel("Menu bar tracks")
+            Picker("", selection: $settings.trackedComponent) {
+                Text("Overall status").tag(AppSettings.overallTracking)
+                if !componentNames.isEmpty {
+                    Divider()
+                    ForEach(componentNames, id: \.self) { name in
+                        Text(name).tag(name)
+                    }
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            Text("Which platform's status colors the ✽ in your menu bar.")
+                .font(.system(size: 10))
+                .foregroundStyle(Palette.textSecondary)
         }
     }
 
@@ -94,20 +119,6 @@ struct SettingsView: View {
                     .frame(width: 80)
                 Stepper("", value: $settings.pollInterval, in: AppSettings.minimumPollInterval...3600, step: 5)
                     .labelsHidden()
-            }
-        }
-    }
-
-    private var customLogoField: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            fieldLabel("Custom logo image (optional, local file)")
-            HStack(spacing: 8) {
-                TextField("Empty = built-in glyph", text: $settings.customLogoPath)
-                    .textFieldStyle(.roundedBorder)
-                Button("Choose…") { chooseLogo() }
-                if !settings.customLogoPath.isEmpty {
-                    Button("Clear") { settings.customLogoPath = "" }
-                }
             }
         }
     }
@@ -137,17 +148,6 @@ struct SettingsView: View {
         f.maximumFractionDigits = 0
         return f
     }()
-
-    private func chooseLogo() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = [.png, .jpeg, .image, .pdf]
-        if panel.runModal() == .OK, let url = panel.url {
-            settings.customLogoPath = url.path
-        }
-    }
 
     private func testURL() async {
         urlCheck = .checking

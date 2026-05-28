@@ -3,8 +3,11 @@
 A minimalist macOS menu-bar app that shows the live operational status of any
 [Atlassian Statuspage](https://www.atlassian.com/software/statuspage)-powered
 service as a single colored glyph in your menu bar. Click the glyph for a
-compact popover that mirrors the public status page — overall status,
-per-component states, and active incidents.
+compact popover that mirrors the public status page — overall status, every
+component with a per-day **history bar**, and active incidents. You choose
+**which platform drives the menu-bar glyph** (e.g. track "Claude Code"
+specifically), and the popover sizes itself to show every component without
+scrolling.
 
 **Why:** close the status-page browser tab. Glance at the menu bar (or click the
 glyph) to know instantly whether something is broken at the service you monitor.
@@ -42,30 +45,28 @@ Other `make` targets: `build` (release binary only), `run`, `clean`, `help`.
 
 ## Configuration
 
-All settings persist to `UserDefaults` and are editable from the in-app Settings
-window (open the popover, click the gear).
+Settings live in the in-app Settings window (open the popover, click the gear).
+Changes **save automatically** and take effect when you close the window — there
+is no Apply button, just **Close**.
 
 | Setting | Default | Notes |
 |---|---|---|
 | **Status page URL** | `https://status.claude.com` | Any Atlassian Statuspage origin. The app polls `{url}/api/v2/summary.json` and shows a check/✗ for reachability. |
-| **Display name** | (uses `page.name` from the API) | Optional override for the popover header. |
+| **Menu bar tracks** | `claude.ai` | Which component's status colors the ✽ glyph. Pick **Overall status** or any single component (e.g. Claude Code). |
 | **Poll interval** | `60` seconds | Minimum `15`. Also polls on launch, on manual refresh, and on wake-from-sleep. |
-| **Custom logo path** | (empty → built-in glyph) | Local image file. See the Custom Logo note below. |
 | **Launch at login** | off | Uses `SMAppService` (ServiceManagement, macOS 13+). |
 
-## Custom Logo
+The popover shows each component with a per-day **history bar** (green/yellow/
+orange/red) reconstructed from the public incident feed, over the window the
+feed actually covers (labeled "last N days") — it never paints days it has no
+data for as operational.
 
-StatusGlance ships a **generic glyph drawn entirely in code** — the `✽`
-character (Heavy Teardrop-Spoked Asterisk, U+273D), tinted by the status color.
-There are no trademarked or third-party image assets bundled anywhere in this
-repository.
+## The glyph
 
-If you want the menu-bar glyph to show a specific service's own logo, set the
-**Custom logo path** in Settings to a **local image file on your own machine**.
-StatusGlance will load that image, render it as a template, and tint it with the
-current status color. The repository never contains, downloads, or distributes
-any branded logo — supplying one is entirely your choice and stays local to your
-device.
+The menu-bar glyph is the `✽` character (Heavy Teardrop-Spoked Asterisk, U+273D),
+drawn entirely in code and tinted by the current status color. There are no
+trademarked or third-party image assets bundled anywhere in this repository, and
+no user-supplied images.
 
 ## Can't see the glyph?
 

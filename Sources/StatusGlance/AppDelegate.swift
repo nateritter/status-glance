@@ -43,10 +43,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        let view = SettingsView(settings: settings) { [weak self] in
-            // Apply: re-point + re-poll, refresh glyph immediately.
-            self?.poller.restart()
-            self?.statusItemController.updateGlyph()
+        // Settings auto-save (UserDefaults); the Close button just dismisses the
+        // window. Changes are applied in windowWillClose (below), so closing via
+        // the Close button or the window's red button both take effect.
+        let view = SettingsView(settings: settings, poller: poller) { [weak self] in
+            self?.settingsWindow?.close()
         }
         let hosting = NSHostingController(rootView: view)
         let window = NSWindow(contentViewController: hosting)
@@ -61,9 +62,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.makeKeyAndOrderFront(nil)
     }
 
-    // Keep a delegate to clear our reference when the settings window closes.
+    // On settings-window close: apply changes (re-point + re-poll, refresh glyph)
+    // and clear our reference. Covers both the Close button and the red button.
     private lazy var settingsWindowDelegate: SettingsWindowDelegate = {
-        SettingsWindowDelegate { [weak self] in self?.settingsWindow = nil }
+        SettingsWindowDelegate { [weak self] in
+            self?.poller.restart()
+            self?.statusItemController.updateGlyph()
+            self?.settingsWindow = nil
+        }
     }()
 }
 

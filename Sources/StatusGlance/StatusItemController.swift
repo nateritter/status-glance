@@ -66,14 +66,10 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
             .sink { [weak self] _ in self?.updateGlyph() }
             .store(in: &cancellables)
 
-        settings.$customLogoPath
+        // The tracked target changes which component drives the glyph color.
+        settings.$trackedComponent
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateGlyph() }
-            .store(in: &cancellables)
-
-        settings.$displayNameOverride
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.updateTooltip() }
             .store(in: &cancellables)
     }
 
@@ -81,25 +77,15 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
 
     func updateGlyph() {
         guard let button = statusItem.button else { return }
-        let indicator = poller.snapshot.effectiveIndicator
-        let color = StatusColor.nsColor(for: indicator)
-        let image = GlyphRenderer.menuBarImage(
-            color: color,
-            customLogoPath: settings.customLogoPath.isEmpty ? nil : settings.customLogoPath)
-        button.image = image
+        let indicator = poller.snapshot.trackedIndicator(tracked: settings.trackedComponent)
+        button.image = GlyphRenderer.menuBarImage(color: StatusColor.nsColor(for: indicator))
         updateTooltip()
     }
 
     private func updateTooltip() {
         guard let button = statusItem.button else { return }
         let name = settings.effectiveName(pageName: poller.snapshot.summary?.page.name)
-        let desc: String
-        if poller.snapshot.isError {
-            desc = poller.snapshot.effectiveIndicator.fallbackDescription
-        } else {
-            desc = poller.snapshot.summary?.status.description
-                ?? poller.snapshot.effectiveIndicator.fallbackDescription
-        }
+        let desc = poller.snapshot.trackedStatusText(tracked: settings.trackedComponent)
         button.toolTip = "\(name) — \(desc)"
     }
 

@@ -54,54 +54,64 @@ menu-bar glyph tint and the popover dots. Keep the mapping in ONE place.
 
 ## Menu-bar glyph
 
-- `NSStatusItem` with `variableLength`. The button image is a **template-style
-  glyph tinted by the current overall status color** (not the default monochrome
-  template behavior — we want color).
-- **Default glyph:** the Unicode character **`✽` (Heavy Teardrop-Spoked
-  Asterisk, U+273D)** rendered in code as an `NSImage` — draw the `✽` character
-  with a system font sized to fit the menu bar (~`NSFont.systemFont(ofSize:)`
-  around 14–15pt for an 18pt status image), centered, into an `NSImage` via
+- `NSStatusItem` with `variableLength`. The button image is a **glyph tinted by
+  the tracked target's status color** (not the default monochrome template
+  behavior — we want color).
+- **The glyph:** the Unicode character **`✽` (Heavy Teardrop-Spoked Asterisk,
+  U+273D)** rendered in code as an `NSImage` — draw the `✽` character with a
+  system font sized to fit the menu bar (~`NSFont.systemFont(ofSize:)` around
+  14–15pt for an 18pt status image), centered, into an `NSImage` via
   `NSImage(size:flipped:drawingHandler:)`, then tint it with the status color.
-  Keep it simple: just the `✽` glyph, no spark/circle/custom vector.
-  NOT a bundled third-party logo.
-- **Custom logo (optional, local only):** if the user sets a custom logo image
-  path in settings, load that image, render it as a template, and tint it with
-  the status color. This is how the user can use their own Claude logo locally
-  WITHOUT the repo ever bundling a trademarked asset. README must state this
-  clearly.
-- Tooltip on the glyph = page name + overall description (e.g. "Claude — All
-  Systems Operational").
+  Keep it simple: just the `✽` glyph. NO bundled assets and NO user-supplied
+  images.
+- **Tracked target:** the glyph color follows either the page's overall
+  indicator OR one chosen component (see Settings → "Menu bar tracks", default
+  `claude.ai`). Mapping a component status to an indicator color: operational→
+  green, degraded→yellow, partial→orange, major→red, maintenance→blue.
+- Tooltip on the glyph = page name + tracked target's status (e.g. "Claude —
+  Claude Code: Operational").
 
 ## Popover (click the glyph)
 
 Minimalist, mirrors the status page. Dark navy palette like the reference
-screenshot. Fixed width ~300pt, height fits content. Sections top→bottom:
+screenshot. Fixed width ~300pt. **Height fits content — every component shows
+without scrolling** (no inner scroll view). Sections top→bottom:
 
-1. **Header:** page name (e.g. "Claude") + colored overall status pill with
-   `status.description`. A small "updated Xm ago" relative timestamp from
-   `page.updated_at`.
-2. **Components:** list rows, each = colored status dot + component name +
-   (optional) right-aligned status label. Respect `only_show_if_degraded`
-   (hide those rows when operational). Indent components that belong to a group.
+1. **Header:** page name (e.g. "Claude") + colored status pill for the tracked
+   target. When tracking a single component, also show a muted "Overall: …"
+   line. A small "updated Xm ago" relative timestamp from `page.updated_at`.
+2. **Components:** one block per component = colored status dot + name +
+   (optional) status label, with the tracked component bold + marked by a `✽`.
+   Beneath each, a per-day **history bar** (see below). Respect
+   `only_show_if_degraded`; indent grouped components.
 3. **Active incidents** (only if `incidents` non-empty): incident name, impact,
    latest update body (truncated), and relative time.
 4. **Footer:** a refresh button (manual poll), a link "Open status page" that
    opens `page.url` in the browser, a Settings button (gear), and Quit.
+
+**History bars:** built from `{base}/api/v2/incidents.json` (recent ~50
+incidents). For each component, render a row of per-day segments (oldest→newest)
+colored by the worst incident impact touching that component that day; days with
+no incident are operational (green). Coverage starts at the oldest incident in
+the feed (clamped to 90 days) so we never imply "operational" for days we have no
+data for; label it "last N days". `.help()` tooltip per day with date + status.
 
 Palette (popover): background `#0F1420`-ish dark navy, section headers in a muted
 blue `#5B8DEF`/`#7AA2F7`, primary text near-white `#E6EDF3`, secondary text
 `#8B949E`. Use SwiftUI `Color` constants in one `Palette` file. Match the
 reference screenshot's vibe — clean, dense, dark.
 
-## Settings window (or popover-anchored sheet)
+## Settings window
 
-Editable, persisted to `UserDefaults`:
+Fields **auto-save to `UserDefaults`** on edit. There is no Apply button — a
+single **Close** button (changes are applied — re-point/re-poll + glyph refresh —
+when the window closes, via either Close or the red button):
 
 - **Status page URL** (string, default `https://status.claude.com`) — validate it
   has `/api/v2/summary.json` reachable; show a check/✗.
-- **Display name** (optional override; otherwise use `page.name` from the API).
+- **Menu bar tracks** — picker: "Overall status" or any one component (populated
+  from the live component list). Default `claude.ai`.
 - **Poll interval** (seconds, default `60`, min `15`).
-- **Custom logo image path** (optional file path; empty = built-in glyph).
 - **Launch at login** (toggle) — use `SMAppService.mainApp` (ServiceManagement,
   macOS 13+). Best-effort; guard with availability.
 
@@ -125,7 +135,8 @@ Editable, persisted to `UserDefaults`:
 - `main.swift` — `NSApplication` bootstrap, `setActivationPolicy(.accessory)`, set delegate, run.
 - `AppDelegate.swift` — owns `StatusItemController`, `StatusPoller`, settings; wires them together.
 - `StatusItemController.swift` — `NSStatusItem`, glyph rendering/tinting, popover show/hide, menu (right-click) with Refresh/Settings/Quit.
-- `GlyphRenderer.swift` — draws the built-in default glyph and tints any image (built-in or custom) to a given `NSColor`.
+- `GlyphRenderer.swift` — draws the `✽` glyph tinted to a given `NSColor`.
+- `History.swift` — builds per-component daily history from the incident feed.
 - `StatuspageClient.swift` — async fetch + Codable models (`Summary`, `PageInfo`, `OverallStatus`, `Component`, `Incident`, `IncidentUpdate`) matching the JSON above.
 - `ServiceStatus.swift` — `Indicator` + `ComponentStatus` enums (lenient decoding) and the single color mapping.
 - `StatusPoller.swift` — timer-driven polling, wake observer, publishes latest `Summary` / error via a callback or `@Published` (ObservableObject).
@@ -142,8 +153,8 @@ Editable, persisted to `UserDefaults`:
   `com.nateritter.statusglance`, copy release binary into
   `Contents/MacOS/`), `run`, `clean`, `install` (copy `.app` to `/Applications`).
 - `Info.plist` template (or generated by the Makefile via `PlistBuddy`/heredoc).
-- `README.md` — what it is, screenshot placeholder, build/run/install
-  instructions, configuration, the **custom-logo + trademark note**, and a clear
+- `README.md` — what it is, build/run/install instructions, configuration, a
+  note that the `✽` glyph is drawn in code (no bundled assets), and a clear
   statement that this is an independent project, not affiliated with or endorsed
   by Anthropic, and that "Claude"/"Anthropic" are trademarks of their owner.
 - `LICENSE` — MIT, copyright Nate Ritter.
@@ -159,4 +170,5 @@ Editable, persisted to `UserDefaults`:
    operational.
 4. Changing the status page URL in settings re-points the app and re-polls.
 5. Network failure shows gray glyph + error note, not a crash or fake-green.
-6. The repo bundles NO trademarked logo asset; default glyph is drawn in code.
+6. The repo bundles NO image assets; the `✽` glyph is drawn entirely in code.
+7. The popover shows all components with history bars and no scrolling.

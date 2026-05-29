@@ -278,9 +278,25 @@ struct PopoverView: View {
                 footerIconButton("gearshape", action: onOpenSettings)
                 footerIconButton("power", action: onQuit)
             }
+            HStack(spacing: 8) {
+                footerLink("GitHub", "https://github.com/nateritter/status-glance")
+                Text("·").font(.system(size: 10)).foregroundStyle(Palette.textSecondary)
+                footerLink("nateritter.com", "https://nateritter.com")
+                Spacer()
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
+    }
+
+    /// A subtle text link in the footer. Opens in the default browser.
+    @ViewBuilder
+    private func footerLink(_ title: String, _ urlString: String) -> some View {
+        if let url = URL(string: urlString) {
+            Link(title, destination: url)
+                .font(.system(size: 10))
+                .foregroundStyle(Palette.textSecondary)
+        }
     }
 
     private func footerButton(_ systemImage: String, _ title: String, action: @escaping () -> Void) -> some View {

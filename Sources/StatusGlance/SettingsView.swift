@@ -34,12 +34,7 @@ struct SettingsView: View {
                 launchAtLoginToggle
             }
 
-            Divider().overlay(Palette.separator)
-
-            HStack(spacing: 10) {
-                aboutLink("GitHub", "https://github.com/nateritter/status-glance")
-                Text("·").foregroundStyle(Palette.textSecondary)
-                aboutLink("nateritter.com", "https://nateritter.com")
+            HStack {
                 Spacer()
                 Button("Close") {
                     onClose()
@@ -138,16 +133,6 @@ struct SettingsView: View {
     }
 
     // MARK: - Helpers
-
-    /// A subtle text link in the About row. Opens in the default browser.
-    @ViewBuilder
-    private func aboutLink(_ title: String, _ urlString: String) -> some View {
-        if let url = URL(string: urlString) {
-            Link(title, destination: url)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Palette.accent)
-        }
-    }
 
     private func fieldLabel(_ text: String) -> some View {
         Text(text)

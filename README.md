@@ -89,6 +89,21 @@ swift run           # build and launch straight from source
 
 Other `make` targets: `build` (release binary only), `run`, `clean`, `help`.
 
+### Keeping it up to date
+
+Since you run a build you made yourself, there's no in-app updater — instead a
+small script syncs your local build with `main`:
+
+```sh
+make update            # pull main, rebuild + relaunch only if there's something new
+make install-updater   # run that check at login and every 6h via a LaunchAgent
+make uninstall-updater # remove the LaunchAgent
+```
+
+`make update` is a strict no-op unless you're on a clean `main` checkout and
+`origin/main` is genuinely ahead — it never disturbs in-progress work. The
+LaunchAgent logs to `~/Library/Logs/StatusGlance-update.log`.
+
 ### Running an unsigned build (important)
 
 StatusGlance is **not code-signed or notarized** — it isn't enrolled in the

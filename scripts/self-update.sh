@@ -41,5 +41,5 @@ git merge --ff-only --quiet origin/main || { log "skip: not a fast-forward"; exi
 make app || { log "build failed at $REMOTE — source updated, prior app still running"; exit 1; }
 pkill -f 'StatusGlance.app/Contents/MacOS/StatusGlance' 2>/dev/null || true
 sleep 1
-open "$REPO/StatusGlance.app"
+open "$REPO/StatusGlance.app" || { log "relaunch failed — run: open $REPO/StatusGlance.app"; exit 1; }
 log "updated and relaunched ($REMOTE)"

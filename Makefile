@@ -21,8 +21,15 @@ INSTALL_DIR   := /Applications
 
 # ---- Phony targets -----------------------------------------------------------
 
-.PHONY: all build app run clean install help
+.PHONY: all build app run clean install update install-updater uninstall-updater help
 .DEFAULT_GOAL := help
+
+# ---- Self-update (build-from-source) -----------------------------------------
+
+UPDATE_LABEL := com.nateritter.statusglance.update
+UPDATE_PLIST := $(HOME)/Library/LaunchAgents/$(UPDATE_LABEL).plist
+UPDATE_LOG   := $(HOME)/Library/Logs/StatusGlance-update.log
+UPDATE_SCRIPT := $(CURDIR)/scripts/self-update.sh
 
 all: app
 
@@ -82,6 +89,47 @@ install: app
 	@rm -rf "$(INSTALL_DIR)/$(APP_BUNDLE)"
 	@cp -R "$(APP_BUNDLE)" "$(INSTALL_DIR)/"
 	@echo "Installed to $(INSTALL_DIR)/$(APP_BUNDLE)"
+
+## update: pull origin/main and rebuild+relaunch if there's anything new (no-op otherwise)
+update:
+	@sh "$(UPDATE_SCRIPT)"
+
+## install-updater: install a LaunchAgent that runs `update` at login and every 6h
+install-updater:
+	@chmod +x "$(UPDATE_SCRIPT)"
+	@mkdir -p "$(HOME)/Library/LaunchAgents" "$(HOME)/Library/Logs"
+	@printf '%s\n' \
+'<?xml version="1.0" encoding="UTF-8"?>' \
+'<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
+'<plist version="1.0">' \
+'<dict>' \
+'	<key>Label</key>' \
+'	<string>$(UPDATE_LABEL)</string>' \
+'	<key>ProgramArguments</key>' \
+'	<array>' \
+'		<string>/bin/sh</string>' \
+'		<string>$(UPDATE_SCRIPT)</string>' \
+'	</array>' \
+'	<key>RunAtLoad</key>' \
+'	<true/>' \
+'	<key>StartInterval</key>' \
+'	<integer>21600</integer>' \
+'	<key>StandardOutPath</key>' \
+'	<string>$(UPDATE_LOG)</string>' \
+'	<key>StandardErrorPath</key>' \
+'	<string>$(UPDATE_LOG)</string>' \
+'</dict>' \
+'</plist>' \
+	> "$(UPDATE_PLIST)"
+	@launchctl unload "$(UPDATE_PLIST)" 2>/dev/null || true
+	@launchctl load "$(UPDATE_PLIST)"
+	@echo "Installed updater LaunchAgent ($(UPDATE_LABEL)); logs at $(UPDATE_LOG)"
+
+## uninstall-updater: remove the auto-update LaunchAgent
+uninstall-updater:
+	@launchctl unload "$(UPDATE_PLIST)" 2>/dev/null || true
+	@rm -f "$(UPDATE_PLIST)"
+	@echo "Removed updater LaunchAgent ($(UPDATE_LABEL))"
 
 ## clean: remove build artifacts and the assembled bundle
 clean:

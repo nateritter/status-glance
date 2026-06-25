@@ -272,9 +272,15 @@ struct PopoverView: View {
                 }
             }
             HStack(spacing: 14) {
-                footerButton("arrow.clockwise", "Refresh", action: onRefresh)
+                refreshControl
                 footerButton("safari", "Status page", action: onOpenStatusPage)
                 Spacer()
+                // Driven by the actual fetch time so Refresh is visibly confirmed.
+                if let checked = poller.snapshot.lastCheckedDescription() {
+                    Text(checked)
+                        .font(.system(size: 10))
+                        .foregroundStyle(Palette.textSecondary)
+                }
                 footerIconButton("gearshape", action: onOpenSettings)
                 footerIconButton("power", action: onQuit)
             }
@@ -283,12 +289,6 @@ struct PopoverView: View {
                 Text("·").font(.system(size: 10)).foregroundStyle(Palette.textSecondary)
                 footerLink("nateritter.com", "https://nateritter.com")
                 Spacer()
-                // Driven by the actual fetch time so Refresh is visibly confirmed.
-                if let checked = poller.snapshot.lastCheckedDescription() {
-                    Text(checked)
-                        .font(.system(size: 9))
-                        .foregroundStyle(Palette.textSecondary)
-                }
             }
         }
         .padding(.horizontal, 14)
@@ -302,6 +302,25 @@ struct PopoverView: View {
             Link(title, destination: url)
                 .font(.system(size: 10))
                 .foregroundStyle(Palette.textSecondary)
+        }
+    }
+
+    /// Refresh action that turns into a labeled spinner while a fetch is in flight,
+    /// so pressing Refresh always produces a visible reaction.
+    @ViewBuilder
+    private var refreshControl: some View {
+        if poller.isRefreshing {
+            HStack(spacing: 5) {
+                ProgressView()
+                    .controlSize(.small)
+                    .scaleEffect(0.6)
+                    .frame(width: 12, height: 12)
+                Text("Refreshing…")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Palette.textSecondary)
+            }
+        } else {
+            footerButton("arrow.clockwise", "Refresh", action: onRefresh)
         }
     }
 

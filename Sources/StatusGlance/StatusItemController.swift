@@ -110,6 +110,10 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
             // Refresh on open for fresh data.
             onRefresh()
             popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
+            // Accessory (LSUIElement) apps aren't the active app, so without this the
+            // FIRST click inside the popover is consumed just to activate the app —
+            // making buttons like Refresh feel dead until a (rarely-tried) second click.
+            NSApp.activate(ignoringOtherApps: true)
             popover.contentViewController?.view.window?.makeKey()
         }
     }

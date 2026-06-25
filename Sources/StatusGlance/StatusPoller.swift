@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import Combine
+import os
 
 /// The latest known state the rest of the app renders from. Last-known component
 /// data is preserved across a failed fetch; only the overall status flips to gray.
@@ -72,12 +73,19 @@ struct StatusSnapshot: Sendable {
 final class StatusPoller: ObservableObject {
 
     @Published private(set) var snapshot: StatusSnapshot = .empty
+    /// True while a fetch is in flight — drives the popover's Refresh spinner so a
+    /// manual refresh is always visibly doing something, even when status is stable.
+    @Published private(set) var isRefreshing: Bool = false
 
     private let client: StatuspageClient
     private var settings: AppSettings
     private var timer: Timer?
     private var inFlight: Task<Void, Never>?
     private var wakeObserver: NSObjectProtocol?
+
+    private let logger = Logger(subsystem: "com.nateritter.statusglance", category: "poller")
+    /// Keep the spinner on screen at least this long so a fast fetch is perceptible.
+    private static let minSpinnerSeconds: TimeInterval = 0.5
 
     init(client: StatuspageClient = StatuspageClient(), settings: AppSettings) {
         self.client = client
@@ -113,6 +121,8 @@ final class StatusPoller: ObservableObject {
 
     /// Manual / immediate poll.
     func refreshNow() {
+        logger.notice("refreshNow requested")
+        isRefreshing = true          // synchronous → spinner shows the instant the button is pressed
         let base = settings.statusPageURL
         inFlight?.cancel()
         inFlight = Task { [weak self] in
@@ -143,6 +153,12 @@ final class StatusPoller: ObservableObject {
     }
 
     private func performFetch(base: String) async {
+        isRefreshing = true
+        let started = Date()
+        // Clear the spinner when THIS fetch settles — but not if a newer refresh
+        // cancelled us (that newer one now owns the in-flight state).
+        defer { if !Task.isCancelled { isRefreshing = false } }
+
         do {
             let summary = try await client.fetchSummary(base: base)
             if Task.isCancelled { return }
@@ -155,6 +171,9 @@ final class StatusPoller: ObservableObject {
             }
             if Task.isCancelled { return }
 
+            await keepSpinnerVisible(since: started)
+            if Task.isCancelled { return }
+
             let now = Date()
             snapshot = StatusSnapshot(
                 summary: summary,
@@ -164,6 +183,7 @@ final class StatusPoller: ObservableObject {
                 lastSuccess: now,
                 incidentHistory: history
             )
+            logger.notice("refresh ok — overall=\(summary.status.indicator.rawValue, privacy: .public), components=\(summary.components.count)")
         } catch {
             if Task.isCancelled { return }
             let note: String
@@ -181,6 +201,15 @@ final class StatusPoller: ObservableObject {
                 lastSuccess: snapshot.lastSuccess,
                 incidentHistory: snapshot.incidentHistory
             )
+            logger.error("refresh failed — \(note, privacy: .public)")
+        }
+    }
+
+    /// Pad a fast fetch so the spinner is on screen long enough to be seen.
+    private func keepSpinnerVisible(since started: Date) async {
+        let remaining = Self.minSpinnerSeconds - Date().timeIntervalSince(started)
+        if remaining > 0 {
+            try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
         }
     }
 

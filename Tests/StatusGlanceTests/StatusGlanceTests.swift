@@ -234,6 +234,29 @@ final class PollerTests: XCTestCase {
         XCTAssertNotNil(poller.snapshot.errorNote)
         XCTAssertNotNil(poller.snapshot.summary, "a transient failure must not clear last-known data")
     }
+
+    // ISC-39: refreshNow() flips isRefreshing true synchronously (spinner appears on click).
+    func testRefreshNowSetsIsRefreshingImmediately() throws {
+        let session = mockSession { req in (okResponse(req.url!), Fixture.data("summary")) }
+        let poller = StatusPoller(client: StatuspageClient(session: session), settings: freshSettings())
+        XCTAssertFalse(poller.isRefreshing)
+        poller.refreshNow()
+        XCTAssertTrue(poller.isRefreshing, "spinner state must be set the instant refresh is requested")
+        poller.stop() // cancel the in-flight task to clean up
+    }
+
+    // ISC-40: isRefreshing resets to false once a fetch settles (no stuck spinner).
+    func testIsRefreshingResetsAfterFetch() async throws {
+        let summaryData = Fixture.data("summary")
+        let incidentsData = Fixture.data("incidents")
+        let session = mockSession { req in
+            let url = req.url!
+            return (okResponse(url), url.absoluteString.contains("incidents") ? incidentsData : summaryData)
+        }
+        let poller = StatusPoller(client: StatuspageClient(session: session), settings: freshSettings())
+        await poller.refreshAndWaitForTesting()
+        XCTAssertFalse(poller.isRefreshing, "spinner must clear after the fetch completes")
+    }
 }
 
 /// Thread-safe-ish flag box for toggling mock failure between awaits.

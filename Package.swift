@@ -10,6 +10,12 @@ let package = Package(
         .executableTarget(
             name: "StatusGlance",
             path: "Sources/StatusGlance"
+        ),
+        .testTarget(
+            name: "StatusGlanceTests",
+            dependencies: ["StatusGlance"],
+            path: "Tests/StatusGlanceTests",
+            resources: [.copy("Fixtures")]
         )
     ]
 )

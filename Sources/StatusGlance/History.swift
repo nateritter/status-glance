@@ -55,13 +55,35 @@ enum HistoryBuilder {
                 guard impact.severity > Indicator.none.severity else { continue }
                 guard let start = incident.startedAt else { continue }
                 let startDay = calendar.startOfDay(for: start)
-                let endDay = calendar.startOfDay(for: incident.resolvedAt ?? now)
+                // End the impact window when service was actually restored, not at
+                // `now`. An incident currently in `monitoring` (a fix is in) ends at
+                // its monitoring time — it must NOT paint a colored streak to today.
+                // But trust `monitoringAt` ONLY while the incident is still in that
+                // state: a regression back to investigating/identified means impact
+                // resumed, so we keep painting up to the last update (or now). A
+                // genuinely-open incident with no monitoring/update info falls to now.
+                let endSignal: Date
+                if let resolved = incident.resolvedAt {
+                    endSignal = resolved
+                } else if incident.status == "monitoring", let monitoring = incident.monitoringAt {
+                    endSignal = monitoring
+                } else {
+                    endSignal = incident.updatedAt ?? now
+                }
+                let endDay = calendar.startOfDay(for: endSignal)
                 for idx in buckets.indices {
                     let day = buckets[idx].date
                     if day >= startDay, day <= endDay, impact.severity > buckets[idx].indicator.severity {
                         buckets[idx] = DayBucket(id: idx, date: day, indicator: impact)
                     }
                 }
+            }
+            // The newest bar reflects the component's CURRENT live status from
+            // summary.json — the authoritative "now" — so the strip can never
+            // contradict the live page (e.g. green pill vs. a stale red streak).
+            if let lastIdx = buckets.indices.last {
+                let last = buckets[lastIdx]
+                buckets[lastIdx] = DayBucket(id: last.id, date: last.date, indicator: comp.status.asIndicator)
             }
             result[comp.id] = ComponentHistory(componentID: comp.id, days: buckets)
         }

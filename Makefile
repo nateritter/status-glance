@@ -19,9 +19,14 @@ MACOS_DIR     := $(CONTENTS)/MacOS
 RESOURCES_DIR := $(CONTENTS)/Resources
 INSTALL_DIR   := /Applications
 
+# Bundle icon (generated in code — see scripts/make-icon.swift). `AppIcon` is the
+# CFBundleIconFile name macOS looks up inside Contents/Resources.
+ICON_SRC      := Resources/AppIcon.icns
+ICON_SCRIPT   := scripts/make-icon.swift
+
 # ---- Phony targets -----------------------------------------------------------
 
-.PHONY: all build app run clean install update install-updater uninstall-updater help
+.PHONY: all build app run clean install update install-updater uninstall-updater icon help
 .DEFAULT_GOAL := help
 
 # ---- Self-update (build-from-source) -----------------------------------------
@@ -49,6 +54,8 @@ app: build
 	@mkdir -p "$(RESOURCES_DIR)"
 	@cp "$(RELEASE_BIN)" "$(MACOS_DIR)/$(APP_NAME)"
 	@chmod +x "$(MACOS_DIR)/$(APP_NAME)"
+	@if [ ! -f "$(ICON_SRC)" ]; then echo "Generating app icon..."; swift "$(ICON_SCRIPT)"; fi
+	@cp "$(ICON_SRC)" "$(RESOURCES_DIR)/AppIcon.icns"
 	@printf '%s\n' \
 '<?xml version="1.0" encoding="UTF-8"?>' \
 '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
@@ -70,6 +77,10 @@ app: build
 '	<string>$(VERSION)</string>' \
 '	<key>CFBundleInfoDictionaryVersion</key>' \
 '	<string>6.0</string>' \
+'	<key>CFBundleIconFile</key>' \
+'	<string>AppIcon</string>' \
+'	<key>CFBundleIconName</key>' \
+'	<string>AppIcon</string>' \
 '	<key>LSUIElement</key>' \
 '	<true/>' \
 '	<key>LSMinimumSystemVersion</key>' \
@@ -130,6 +141,10 @@ uninstall-updater:
 	@launchctl unload "$(UPDATE_PLIST)" 2>/dev/null || true
 	@rm -f "$(UPDATE_PLIST)"
 	@echo "Removed updater LaunchAgent ($(UPDATE_LABEL))"
+
+## icon: (re)generate the bundle icon at Resources/AppIcon.icns (drawn in code)
+icon:
+	swift "$(ICON_SCRIPT)"
 
 ## clean: remove build artifacts and the assembled bundle
 clean:

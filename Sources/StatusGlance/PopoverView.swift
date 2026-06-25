@@ -274,13 +274,7 @@ struct PopoverView: View {
             HStack(spacing: 14) {
                 refreshControl
                 footerButton("safari", "Status page", action: onOpenStatusPage)
-                Spacer()
-                // Driven by the actual fetch time so Refresh is visibly confirmed.
-                if let checked = poller.snapshot.lastCheckedDescription() {
-                    Text(checked)
-                        .font(.system(size: 10))
-                        .foregroundStyle(Palette.textSecondary)
-                }
+                Spacer(minLength: 8)
                 footerIconButton("gearshape", action: onOpenSettings)
                 footerIconButton("power", action: onQuit)
             }
@@ -288,7 +282,15 @@ struct PopoverView: View {
                 footerLink("GitHub", "https://github.com/nateritter/status-glance")
                 Text("·").font(.system(size: 10)).foregroundStyle(Palette.textSecondary)
                 footerLink("nateritter.com", "https://nateritter.com")
-                Spacer()
+                Spacer(minLength: 8)
+                // Driven by the actual fetch time so Refresh is visibly confirmed.
+                if let checked = poller.snapshot.lastCheckedDescription() {
+                    Text(checked)
+                        .font(.system(size: 10))
+                        .foregroundStyle(Palette.textSecondary)
+                        .lineLimit(1)
+                        .fixedSize()
+                }
             }
         }
         .padding(.horizontal, 14)
@@ -318,7 +320,9 @@ struct PopoverView: View {
                 Text("Refreshing…")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(Palette.textSecondary)
+                    .lineLimit(1)
             }
+            .fixedSize()
         } else {
             footerButton("arrow.clockwise", "Refresh", action: onRefresh)
         }
@@ -334,6 +338,8 @@ struct PopoverView: View {
             .foregroundStyle(Palette.accent)
         }
         .buttonStyle(.plain)
+        .lineLimit(1)
+        .fixedSize()
     }
 
     private func footerIconButton(_ systemImage: String, action: @escaping () -> Void) -> some View {

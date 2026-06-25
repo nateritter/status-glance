@@ -283,6 +283,12 @@ struct PopoverView: View {
                 Text("·").font(.system(size: 10)).foregroundStyle(Palette.textSecondary)
                 footerLink("nateritter.com", "https://nateritter.com")
                 Spacer()
+                // Driven by the actual fetch time so Refresh is visibly confirmed.
+                if let checked = poller.snapshot.lastCheckedDescription() {
+                    Text(checked)
+                        .font(.system(size: 9))
+                        .foregroundStyle(Palette.textSecondary)
+                }
             }
         }
         .padding(.horizontal, 14)

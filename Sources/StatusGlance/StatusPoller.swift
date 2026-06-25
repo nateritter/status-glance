@@ -51,6 +51,17 @@ struct StatusSnapshot: Sendable {
         return summary?.status.description ?? effectiveIndicator.fallbackDescription
     }
 
+    /// Human-readable "we last fetched" label for the popover, driven by the
+    /// actual fetch time (not the status page's own `updated_at`). This is what
+    /// makes a manual Refresh visibly do something even when the status is stable.
+    func lastCheckedDescription(now: Date = Date()) -> String? {
+        guard let last = lastSuccess else { return nil }
+        if now.timeIntervalSince(last) < 5 { return "Checked just now" }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return "Checked " + formatter.localizedString(for: last, relativeTo: now)
+    }
+
     static let empty = StatusSnapshot(summary: nil, isError: false, errorNote: nil,
                                       lastAttempt: nil, lastSuccess: nil)
 }
@@ -109,6 +120,14 @@ final class StatusPoller: ObservableObject {
             await self.performFetch(base: base)
         }
     }
+
+    #if DEBUG
+    /// Test-only: run one fetch and await its completion deterministically.
+    /// Not compiled into release builds.
+    func refreshAndWaitForTesting() async {
+        await performFetch(base: settings.statusPageURL)
+    }
+    #endif
 
     // MARK: - Internals
 

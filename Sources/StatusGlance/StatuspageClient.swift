@@ -48,6 +48,9 @@ struct Incident: Codable, Sendable, Identifiable {
     let impact: String?
     let shortlink: String?
     let startedAt: Date?
+    /// When the incident moved to `monitoring` (a fix was implemented). For an
+    /// unresolved incident this is the best signal that visible impact has ended.
+    let monitoringAt: Date?
     let resolvedAt: Date?
     let updatedAt: Date?
     /// Components this incident affected (present in `incidents.json`, absent in
@@ -143,7 +146,8 @@ struct StatuspageClient: Sendable {
         return plain.date(from: raw)
     }
 
-    private static func makeDecoder() -> JSONDecoder {
+    /// Internal (not private) so the test target can decode the same way the app does.
+    static func makeDecoder() -> JSONDecoder {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         // Statuspage uses ISO8601 with fractional seconds (e.g. 2026-05-28T19:34:10.080Z).

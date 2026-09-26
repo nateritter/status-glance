@@ -71,7 +71,10 @@ with **any** site running [Atlassian Statuspage](https://www.atlassian.com/softw
 
 ### Build from source
 
-Requires macOS 14+ and the Xcode 16 / Swift 6.1 toolchain.
+Requires macOS 14+ and the Xcode 16 / Swift 6.1 toolchain. On macOS 27 with only the
+Command Line Tools installed, the default `swift build` is broken; `make app` detects
+this and falls back to the native build system against an older installed SDK (see
+`scripts/build.sh`).
 
 ```sh
 git clone https://github.com/nateritter/status-glance.git

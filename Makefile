@@ -12,7 +12,7 @@ VERSION       := 1.0.0
 MIN_OS        := 14.0
 
 BIN_NAME      := StatusGlance
-RELEASE_BIN   := .build/release/$(BIN_NAME)
+RELEASE_BIN   := .build/statusglance-release/$(BIN_NAME)
 APP_BUNDLE    := $(APP_NAME).app
 CONTENTS      := $(APP_BUNDLE)/Contents
 MACOS_DIR     := $(CONTENTS)/MacOS
@@ -38,9 +38,9 @@ UPDATE_SCRIPT := $(CURDIR)/scripts/self-update.sh
 
 all: app
 
-## build: compile the release binary via SPM
+## build: compile the release binary via SPM (with toolchain fallbacks — see scripts/build.sh)
 build:
-	swift build -c release
+	@sh scripts/build.sh "$(RELEASE_BIN)"
 
 ## run: build and run for development (swift run)
 run:

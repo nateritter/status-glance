@@ -56,7 +56,13 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
             },
             onQuit: { [weak self] in self?.onQuit() }
         )
-        popover.contentViewController = NSHostingController(rootView: content)
+        let hosting = NSHostingController(rootView: content)
+        // Publish the SwiftUI content's size through preferredContentSize so NSPopover
+        // sizes (and re-anchors) itself from it. Without this, macOS 27 positions the
+        // popover using its 320x320 default, then SwiftUI grows the window upward to the
+        // real height — pushing the header off the top of the screen.
+        hosting.sizingOptions = .preferredContentSize
+        popover.contentViewController = hosting
     }
 
     private func observeState() {
@@ -109,6 +115,15 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         } else {
             // Refresh on open for fresh data.
             onRefresh()
+            // Size the popover to its content BEFORE showing so it's anchored with the
+            // correct height (see configurePopover).
+            if let view = popover.contentViewController?.view {
+                view.layoutSubtreeIfNeeded()
+                let fitting = view.fittingSize
+                if fitting.width > 0, fitting.height > 0 {
+                    popover.contentSize = fitting
+                }
+            }
             popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
             // Accessory (LSUIElement) apps aren't the active app, so without this the
             // FIRST click inside the popover is consumed just to activate the app —
